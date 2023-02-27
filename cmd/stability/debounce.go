@@ -41,3 +41,51 @@ func DebounceFirst(circuit Circuit, d time.Duration) Circuit {
 		return result, err
 	}
 }
+
+// DebounceLast works like DebounceFirst but
+// uses a time.Ticker to determine whether
+// enough time has passed since the function
+// was last called, calling circuit when it has.
+func DebounceLast(circuit Circuit, d time.Duration) Circuit {
+	threshold := time.Now()
+	ticker := &time.Ticker{}
+	result := *new(string)
+	err := *new(error)
+	once := sync.Once{}
+	m := sync.Mutex{}
+
+	return func(ctx context.Context) (string, error) {
+		m.Lock()
+		defer m.Unlock()
+		threshold = time.Now().Add(d)
+		once.Do(func() {
+			ticker = time.NewTicker(time.Millisecond * 100)
+			go func() {
+				defer func() {
+					m.Lock()
+					ticker.Stop()
+					once = sync.Once{}
+					m.Unlock()
+				}()
+				for {
+					select {
+					case <-ticker.C:
+						m.Lock()
+						if time.Now().After(threshold) {
+							result, err = circuit(ctx)
+							m.Unlock()
+							return
+						}
+						m.Unlock()
+					case <-ctx.Done():
+						m.Lock()
+						result, err = "", ctx.Err()
+						m.Unlock()
+						return
+					}
+				}
+			}()
+		})
+		return result, err
+	}
+}

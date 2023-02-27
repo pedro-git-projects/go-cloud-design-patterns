@@ -28,14 +28,14 @@ import (
 // circuit. If that value meets the failure threshold, then it returns the error “service
 // unreachable” without actually calling circuit. Any successful calls to circuit cause
 // consecutiveFailures to reset to 0, and the cycle begins again.
-func Breaker(circuit Circuit, failiureThreshhold uint) Circuit {
-	consecutiveFailiures := *new(int)
+func Breaker(circuit Circuit, failureThreshold uint) Circuit {
+	consecutiveFailures := *new(int)
 	lastAttempt := time.Now()
 	m := sync.RWMutex{}
 
 	return func(ctx context.Context) (string, error) {
 		m.RLock()
-		d := consecutiveFailiures - int(failiureThreshhold)
+		d := consecutiveFailures - int(failureThreshold)
 
 		if d >= 0 {
 			shouldRetryAt := lastAttempt.Add(time.Second * 2 << d)
@@ -53,11 +53,11 @@ func Breaker(circuit Circuit, failiureThreshhold uint) Circuit {
 		lastAttempt = time.Now()
 
 		if err != nil {
-			consecutiveFailiures++
+			consecutiveFailures++
 			return response, err
 		}
 
-		consecutiveFailiures = 0
+		consecutiveFailures = 0
 		return response, nil
 	}
 }
